@@ -1,4 +1,5 @@
 ---
+---
 - hosts: myhosts
   name: PowerEdge iDRAC Get System Information
   gather_facts: False
@@ -43,6 +44,27 @@
       - SELLogs
       - LCLogs
       - Jobs
+  - name: get idrac manager info
+    idrac: idracip={{idrac_ip}} subsystem=Manager cmd={{item}}
+    register: "chassisinfo"
+    ignore_errors: True
+    with_items:
+    - IndicatorLED
+    - ChassisType
+    - ResetTypes
+    - CooledBy
+    - Health
+    - PoweredBy
+    - PartNumber
+    - Model
+    - Manufacturer
+    - PowerState
+    - SKU
+    - BoardInletTemp
+    - BoardExhaustTemp
+    - CPUTemp
+    - PowerConsumedWatts
+    - FANRPM
 
   - name: get event info
     idrac: idracip={{idrac_ip}} subsystem=Event cmd={{item}}
@@ -95,7 +117,18 @@
     idrac: idracip={{idrac_ip}} subsystem=System cmd=StorageControllerDisks storage_controller={{item}}
     with_items:
       - "{{disk.stdout}}"
-
+      
+  - name: get  CPUs
+    idrac: idracip={{idrac_ip}} subsystem=System cmd="{{item}}" 
+    register: cpus
+    with_items:
+      - CPUs 
+      
+  - name: get  CPU tempreture
+    idrac: idracip="{{idrac_ip}}" subsystem=Chassis cmd=CPUTemp CPU="{{item}}" 
+    with_items:
+      - "{{cpus.results[0].stdout}}"
+      
   - name: set Onetime boot from PXE
     idrac: idracip={{idrac_ip}} subsystem=System cmd=OneTimeBoot Target=Pxe
 
@@ -104,3 +137,6 @@
     
   - name: iDrac manager reset
     idrac: idracip={{idrac_ip}} subsystem=Manager cmd=Reset ResetType=GracefulRestart
+
+  
+

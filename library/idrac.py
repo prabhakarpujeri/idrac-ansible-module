@@ -79,6 +79,17 @@ options:
         choices=["None","Pxe","Floppy","Cd","Hdd","BiosSetup","Utilities","UefiTarget","SDCard","UefiHttp"])
         description:
           - system set to onetime boot from sources
+    FAN:
+        required: False
+        default: None
+        description:
+            - This is fan name in chassis i.e Fan.Embedded.A1, Fan.Embedded.A2 etc
+    CPU:
+        required: False
+        default: None
+        description:
+            - This is CPU socket name in chassis i.e CPU1, CPU2 etc 
+    
 '''
 ANSIBLE_METADATA = {'status': ['preview'],
                     'supported_by': 'community',
@@ -104,11 +115,10 @@ class iDRAC(object):
     def send_get_request(self, uri):
         try:
             response = requests.get(uri, verify=False, auth=(self.module.params['idracuser'], self.module.params['idracpswd']))
-            systemData = response.json()
+            
         except:
-            raise
-        
-        return systemData
+            pass
+        return response.json()
     
     def send_post_request(self,uri, pyld, hdrs):
         try:
@@ -206,14 +216,23 @@ class iDRAC(object):
         for i in resp[u'Members']:
             cert.append(os.path.basename(i[u'@odata.id']))
         return ",".join(str(x) for x in cert)
-
+    def get_system_cpus(self):
+        cpus=[]
+        resp = self.send_get_request(self.system_uri+u'/Processors')
+        if not 'error' in resp.keys():
+            for i in resp[u'Members']:
+                cpus.append("CPU%s"%(os.path.basename(i[u'@odata.id']).split('.')[2]))
+            return (json.dumps(cpus),None)
+        return (None,resp['error']['@Message.ExtendedInfo'][0]['Message'])
+            
     def get_system_storage_controllers(self):
         ctrls = []
         resp = self.send_get_request(self.system_uri + u'/Storage/Controllers')
         for i in resp[u'Members']:
             ctrls.append(os.path.basename(i[u'@odata.id']))
         return json.dumps(ctrls)
-
+        
+        
     def get_system_storage_controller_disks(self):
         resp = self.send_get_request(self.system_uri + u'/Storage/Controllers/%s' % self.module.params[u'storage_controller'])
         if len(resp[u'Devices']) > 1:
@@ -229,6 +248,155 @@ class iDRAC(object):
         headers = {'content-type': 'application/json'}
         return self.send_patch_request(self.system_uri,payload,headers )
     
+    # Redfish Chassis API
+    
+    def get_chassis_health(self):
+        resp = self.send_get_request(self.chassis_uri)
+        if not 'error' in resp.keys():
+            return (str(resp[u'Status'][u'Health']),None)
+        else:
+            return (None,resp['error']['@Message.ExtendedInfo'][0]['Message'])
+        
+    def get_chassis_indicator_LED_status(self):
+        resp = self.send_get_request(self.chassis_uri)
+        if not 'error' in resp.keys():
+            return (str(resp[u'IndicatorLED']),None)
+        else:
+            return (None,resp['error']['@Message.ExtendedInfo'][0]['Message'])
+        
+    
+    def get_chassis_type(self):
+        resp = self.send_get_request(self.chassis_uri)
+        if not 'error' in resp.keys():
+            return (str(resp[u'ChassisType']),None)
+        else:
+            return (None,resp['error']['@Message.ExtendedInfo'][0]['Message'])
+        
+        return str(resp[u'ChassisType'])
+    
+    def get_chassis_reset_options(self):
+        resp = self.send_get_request(self.chassis_uri)
+        if not 'error' in resp.keys():
+            return (str(resp[u'Actions'][u'#Chassis.Reset'][u'ResetType@Redfish.AllowableValues']),None)
+        else:
+            return (None,resp['error']['@Message.ExtendedInfo'][0]['Message'])
+        
+    def get_chassis_fans(self):
+        fan=[]
+        resp = self.send_get_request(self.chassis_uri)
+        for i in resp[u'Links'][u'CooledBy']:
+            fan.append(os.path.basename(i[u'@odata.id']).split('||')[1])
+        if not 'error' in resp.keys():
+            return (json.dumps(fan),None)
+        else:
+            return (None,resp['error']['@Message.ExtendedInfo'][0]['Message'])
+    
+    def get_chassis_fan_health(self):
+        resp = self.send_get_request(self.chassis_uri)
+        if not 'error' in resp.keys():
+            return (str(resp[u'Status'][u'Health']),None)
+        else:
+            return (None,resp['error']['@Message.ExtendedInfo'][0]['Message'])
+        
+    
+    def get_chassis_fan_reading(self):
+        pass
+    def get_chassis_powered_by(self):
+        PSU=[]
+        resp = self.send_get_request(self.chassis_uri)
+        for i in resp[u'Links'][u'PoweredBy']:
+            PSU.append(os.path.basename(i[u'@odata.id']))
+        if not 'error' in resp.keys():
+            return (json.dumps(PSU),None)
+        else:
+            return (None,resp['error']['@Message.ExtendedInfo'][0]['Message'])
+        
+    
+    def get_chassis_part_number(self):
+        resp = self.send_get_request(self.chassis_uri)
+        if not 'error' in resp.keys():
+            return (str(resp[u'PartNumber']),None)
+        else:
+            return (None,resp['error']['@Message.ExtendedInfo'][0]['Message'])
+        
+    
+    def get_chassis_model(self):
+        resp = self.send_get_request(self.chassis_uri)
+        if not 'error' in resp.keys():
+            return (str(resp[u'Model']),None)
+        else:
+            return (None,resp['error']['@Message.ExtendedInfo'][0]['Message'])
+        
+    
+    def get_chassis_manufacturer(self):
+        resp = self.send_get_request(self.chassis_uri)
+        if not 'error' in resp.keys():
+            return (str(resp[u'Manufacturer']),None)
+        else:
+            return (None,resp['error']['@Message.ExtendedInfo'][0]['Message'])
+        
+    
+    def get_chassis_power_state(self):
+        resp = self.send_get_request(self.chassis_uri)
+        if not 'error' in resp.keys():
+            return (str(resp[u'PowerState']),None)
+        else:
+            return (None,resp['error']['@Message.ExtendedInfo'][0]['Message'])
+        
+    
+    def get_chassis_serial_number(self):
+        resp = self.send_get_request(self.chassis_uri)
+        if not 'error' in resp.keys():
+            return (str(resp[u'SerialNumber']),None)
+        else:
+            return (None,resp['error']['@Message.ExtendedInfo'][0]['Message'])
+        
+    
+    def get_chassis_SKU(self):
+        resp = self.send_get_request(self.chassis_uri)
+        if not 'error' in resp.keys():
+            return (str(resp[u'SKU']),None)
+        else:
+            return (None,resp['error']['@Message.ExtendedInfo'][0]['Message'])
+        
+    
+    def get_chassis_board_inlet_Temp(self):
+        resp = self.send_get_request(self.chassis_uri+u'/Sensors/Temperatures/iDRAC.Embedded.1%23SystemBoardInletTemp')
+        if not 'error' in resp.keys():
+            return (str(resp[u'ReadingCelsius']),None)
+        else:
+            return (None,resp['error']['@Message.ExtendedInfo'][0]['Message'])
+
+    
+    def get_chassis_board_exhaust_temp(self):
+        resp = self.send_get_request(self.chassis_uri+u'/Sensors/Temperatures/iDRAC.Embedded.1%23SystemBoardExhaustTemp')
+        if not 'error' in resp.keys():
+            return (str(resp[u'ReadingCelsius']),None)
+        else:
+            return (None,resp['error']['@Message.ExtendedInfo'][0]['Message'])
+
+    def get_chassis_cpu_temp(self):
+        resp = self.send_get_request(self.chassis_uri + u'/Sensors/Temperatures/iDRAC.Embedded.1%%23%sTemp' % self.module.params[u'CPU'])
+        if not 'error' in resp.keys():
+            return (str(resp[u'ReadingCelsius']),None)
+        
+        return (None,resp['error']['@Message.ExtendedInfo'][0]['Message'])
+    
+    def get_chassis_power_consumed_watts(self):
+        resp = self.send_get_request(self.chassis_uri+'/Power/PowerControl')
+        if not 'error' in resp.keys():
+            return (str(resp[u'PowerConsumedWatts']),None)
+        return (None,resp['error']['@Message.ExtendedInfo'][0]['Message'])
+    
+    def get_chassis_fan_rpm(self):
+        resp = self.send_get_request(self.chassis_uri + u'/Sensors/Fans/0x17||%s' % self.module.params[u'FAN'])
+        if not 'error' in resp.keys():
+            return (str(resp[u'Reading']),None)
+        
+        return (None,resp['error']['@Message.ExtendedInfo'][0]['Message'])
+    
+        
+    # iDRAC manager API
     def get_manager_health(self):
         resp = self.send_get_request(self.manager_uri)
         return str(resp[u'"Status"'][u'Health'])
@@ -323,7 +491,9 @@ def main():
                 eth_interface = dict(required=False, type='str', default=None),
                 storage_controller = dict(required=False, type='str', default=None),
                 ResetType = dict(required=False, type='str', default=None,choices=["On", "ForceOff", "GracefulRestart", "GracefulShutdown", "PushPowerButton", "Nmi"]),
-                Target = dict(required=False, type='str', default=None, choices=["None","Pxe","Floppy","Cd","Hdd","BiosSetup","Utilities","UefiTarget","SDCard","UefiHttp"])
+                Target = dict(required=False, type='str', default=None, choices=["None","Pxe","Floppy","Cd","Hdd","BiosSetup","Utilities","UefiTarget","SDCard","UefiHttp"]),
+                FAN = dict(required=False, type='str', default=None),
+                CPU = dict(required=False, type='str', default=None),
             ),
             supports_check_mode=True
     )
@@ -406,6 +576,8 @@ def main():
             
         if params['cmd'] == 'StorageControllerDisks':
             out = idrac.get_system_storage_controller_disks()
+        if params['cmd'] == 'CPUs':
+            (out,err)=idrac.get_system_cpus()
         if params['cmd'] == 'Reset':
             if params['ResetType'] != None:
                 resp=idrac.system_reset()
@@ -465,7 +637,55 @@ def main():
                     err="Manager reset failed. Error code:%s"%(resp)
             else:
                 module.fail_json(msg="Please provide type of reset")
-                
+
+    if params['subsystem'] == "Chassis":
+        if params['cmd'] == 'IndicatorLED':
+            (out,err)=idrac.get_chassis_indicator_LED_status()
+            
+        if params['cmd'] == 'ChassisType':
+            (out,err)=idrac.get_chassis_type()
+        
+        if params['cmd'] == 'ResetTypes':
+            (out,err)=idrac.get_chassis_reset_options()
+            
+        if params['cmd'] == 'CooledBy':
+            (out,err)=idrac.get_chassis_fans()
+            
+        if params['cmd'] == 'Health':
+            (out,err)=idrac.get_chassis_health()
+        
+        if params['cmd'] == 'PoweredBy':
+            (out,err)=idrac.get_chassis_powered_by()
+        
+        if params['cmd'] == 'PartNumber':
+            (out,err)=idrac.get_chassis_part_number()
+            
+        if params['cmd'] == 'Model':
+            (out,err)=idrac.get_chassis_model()
+            
+        if params['cmd'] == 'Manufacturer':
+            (out,err)=idrac.get_chassis_manufacturer()
+        
+        if params['cmd'] == 'PowerState':
+            (out,err)=idrac.get_chassis_power_state()
+        if params['cmd'] == 'SKU':
+            (out,err)=idrac.get_chassis_SKU()
+        
+        if params['cmd'] == 'BoardInletTemp':
+            (out,err)=idrac.get_chassis_board_inlet_Temp()
+            
+        if params['cmd'] == 'BoardExhaustTemp':
+            (out,err)=idrac.get_chassis_board_exhaust_temp()
+            
+        if params['cmd'] == 'CPUTemp':
+            (out,err)=idrac.get_chassis_cpu_temp()
+        
+        if params['cmd'] == 'PowerConsumedWatts':
+            (out,err)=idrac.get_chassis_power_consumed_watts()
+        
+        if params['cmd'] == 'FANRPM':
+            (out,err)=idrac.get_chassis_fan_rpm()
+              
     if params['subsystem'] == "Event":
         if params['cmd'] == 'types':
             out = idrac.get_event_type_for_subscription()
