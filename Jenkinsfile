@@ -2,8 +2,17 @@ pipeline {
   agent any
   stages {
     stage('Unit test') {
-      steps {
-        sh 'ls'
+      parallel {
+        stage('Unit test') {
+          steps {
+            sh 'ls'
+          }
+        }
+        stage('function') {
+          steps {
+            sh 'ps '
+          }
+        }
       }
     }
   }
