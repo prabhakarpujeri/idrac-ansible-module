@@ -6,6 +6,7 @@ pipeline {
         stage('Unit test') {
           steps {
             sh 'ls'
+            sh 'ps aux'
           }
         }
         stage('function') {
